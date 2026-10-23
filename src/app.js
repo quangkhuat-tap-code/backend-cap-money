@@ -24,9 +24,10 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/transactions', transactionRoutes);
 
 // Route placeholders (của Thành viên khác)
-// app.use('/api/auth', ...);          // Thành viên 2
-// app.use('/api/wallets', ...);       // Thành viên 2
-// app.use('/api/stats', ...);         // Thành viên 3
+// app.use('/api/auth', ...);          // Thành viên 2: register, login, profile
+// app.use('/api/wallets', ...);       // Thành viên 2: CRUD ví, transfer
+// app.use('/api/analytics', ...);     // Thành viên 3: summary
+// app.use('/api/budgets', ...);       // Thành viên 3
 
 // 404 handler cho /api/*
 app.all('/api/*', (req, res) => {
