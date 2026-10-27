@@ -22,15 +22,14 @@ const transactionRoutes = require('./routes/transaction.routes');
 const authRoutes = require('./routes/auth.routes');
 const walletRoutes = require('./routes/wallet.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
+const budgetRoutes = require('./routes/budget.routes');
 
 app.use('/api/categories', categoryRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/wallets', walletRoutes);
 app.use('/api/analytics', analyticsRoutes);
-
-// Route placeholders (của Thành viên khác)
-// app.use('/api/budgets', ...);       // Thành viên 3
+app.use('/api/budgets', budgetRoutes);
 
 // 404 handler cho /api/*
 app.all('/api/*', (req, res) => {
