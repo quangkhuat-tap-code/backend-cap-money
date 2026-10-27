@@ -20,13 +20,14 @@ app.use('/uploads', express.static(uploadDir));
 const categoryRoutes = require('./routes/category.routes');
 const transactionRoutes = require('./routes/transaction.routes');
 const authRoutes = require('./routes/auth.routes');
+const walletRoutes = require('./routes/wallet.routes');
 
 app.use('/api/categories', categoryRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/wallets', walletRoutes);
 
 // Route placeholders (của Thành viên khác)
-// app.use('/api/wallets', ...);       // Thành viên 2: CRUD ví, transfer
 // app.use('/api/analytics', ...);     // Thành viên 3: summary
 // app.use('/api/budgets', ...);       // Thành viên 3
 
