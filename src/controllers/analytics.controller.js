@@ -65,6 +65,63 @@ async function getSummary(req, res, next) {
   }
 }
 
+// Tong chi/thu cua N thang ket thuc o thang chon, cu nhat truoc; thang khong co giao dich van co so 0 (4C-1)
+async function getTrend(req, res, next) {
+  try {
+    const range = parseMonthYear(req.query.month, req.query.year);
+    const months = req.query.months !== undefined ? Number(req.query.months) : 6;
+    if (!range || !Number.isInteger(months) || months < 2 || months > 12) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tham số lọc không hợp lệ',
+        data: null
+      });
+    }
+
+    // Dung san mang thang tu cu den moi
+    const points = [];
+    let m = range.month;
+    let y = range.year;
+    for (let i = 0; i < months; i++) {
+      points.unshift({ month: m, year: y, total_expense: 0, total_income: 0 });
+      m--;
+      if (m < 1) {
+        m = 12;
+        y--;
+      }
+    }
+    const first = parseMonthYear(points[0].month, points[0].year);
+    const start = first ? first.start : range.start;
+
+    const [rows] = await pool.query(
+      `SELECT YEAR(transaction_date) AS y, MONTH(transaction_date) AS m, type, SUM(amount) AS total
+       FROM transactions
+       WHERE user_id = ? AND transaction_date >= ? AND transaction_date < ?
+       GROUP BY y, m, type`,
+      [req.user.id, start, range.end]
+    );
+    for (const r of rows) {
+      const p = points.find(x => x.month === Number(r.m) && x.year === Number(r.y));
+      if (!p) continue;
+      const total = Math.round(Number(r.total) * 100) / 100;
+      if (r.type === 'expense') {
+        p.total_expense = total;
+      } else {
+        p.total_income = total;
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Lấy xu hướng thành công',
+      data: points
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
-  getSummary
+  getSummary,
+  getTrend
 };
