@@ -19,15 +19,17 @@ app.use('/uploads', express.static(uploadDir));
 
 const categoryRoutes = require('./routes/category.routes');
 const transactionRoutes = require('./routes/transaction.routes');
+const authRoutes = require('./routes/auth.routes');
+const walletRoutes = require('./routes/wallet.routes');
+const analyticsRoutes = require('./routes/analytics.routes');
+const budgetRoutes = require('./routes/budget.routes');
 
 app.use('/api/categories', categoryRoutes);
 app.use('/api/transactions', transactionRoutes);
-
-// Route placeholders (của Thành viên khác)
-// app.use('/api/auth', ...);          // Thành viên 2: register, login, profile
-// app.use('/api/wallets', ...);       // Thành viên 2: CRUD ví, transfer
-// app.use('/api/analytics', ...);     // Thành viên 3: summary
-// app.use('/api/budgets', ...);       // Thành viên 3
+app.use('/api/auth', authRoutes);
+app.use('/api/wallets', walletRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/budgets', budgetRoutes);
 
 // 404 handler cho /api/*
 app.all('/api/*', (req, res) => {
