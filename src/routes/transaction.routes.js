@@ -5,11 +5,15 @@ const { uploadSingleImage } = require('../middlewares/upload.middleware');
 const {
   createTransaction,
   getTransactions,
-  deleteTransaction
+  deleteTransaction,
+  updateTransaction,
+  searchTransactions
 } = require('../controllers/transaction.controller');
 
 router.get('/', auth, getTransactions);
+router.get('/search', auth, searchTransactions);
 router.post('/', auth, uploadSingleImage, createTransaction);
+router.put('/:id', auth, updateTransaction);
 router.delete('/:id', auth, deleteTransaction);
 
 module.exports = router;
