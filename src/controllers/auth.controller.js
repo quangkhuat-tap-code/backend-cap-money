@@ -149,7 +149,49 @@ async function login(req, res, next) {
   }
 }
 
+async function getProfile(req, res, next) {
+  try {
+    const [rows] = await pool.query(
+      `SELECT u.id, u.full_name, u.email, u.created_at,
+              COUNT(t.id)                                                      AS total_transactions,
+              COALESCE(SUM(CASE WHEN t.type = 'income'  THEN t.amount END), 0) AS total_income,
+              COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount END), 0) AS total_expense
+       FROM users u
+       LEFT JOIN transactions t ON t.user_id = u.id
+       WHERE u.id = ?
+       GROUP BY u.id`,
+      [req.user.id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Người dùng không tồn tại',
+        data: null
+      });
+    }
+
+    const row = rows[0];
+    res.status(200).json({
+      success: true,
+      message: 'Lấy thông tin cá nhân thành công',
+      data: {
+        id: row.id,
+        full_name: row.full_name,
+        email: row.email,
+        created_at: row.created_at,
+        total_transactions: Number(row.total_transactions),
+        total_income: Number(row.total_income),
+        total_expense: Number(row.total_expense)
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   register,
-  login
+  login,
+  getProfile
 };
