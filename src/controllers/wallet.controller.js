@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const { parseMonthYear } = require('../utils/monthRange');
 
 const WALLET_TYPES = ['cash', 'bank', 'saving'];
 const MAX_AMOUNT = 999999999999;
@@ -338,10 +339,54 @@ async function transferMoney(req, res, next) {
   }
 }
 
+// Lich su chuyen tien trong 1 thang, kem ten vi nguon/dich (4B-1)
+async function getTransfers(req, res, next) {
+  try {
+    const range = parseMonthYear(req.query.month, req.query.year);
+    if (!range) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tham số lọc không hợp lệ',
+        data: null
+      });
+    }
+
+    const [rows] = await pool.query(
+      `SELECT wt.id, wt.amount, wt.note, wt.transfer_date,
+              wt.from_wallet_id, fw.name AS from_wallet_name,
+              wt.to_wallet_id,   tw.name AS to_wallet_name
+       FROM wallet_transfers wt
+       JOIN wallets fw ON fw.id = wt.from_wallet_id
+       JOIN wallets tw ON tw.id = wt.to_wallet_id
+       WHERE wt.user_id = ? AND wt.transfer_date >= ? AND wt.transfer_date < ?
+       ORDER BY wt.transfer_date DESC, wt.id DESC`,
+      [req.user.id, range.start, range.end]
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Lấy lịch sử chuyển tiền thành công',
+      data: rows.map(row => ({
+        id: row.id,
+        amount: Number(row.amount),
+        note: row.note != null ? row.note : null,
+        transfer_date: row.transfer_date,
+        from_wallet_id: row.from_wallet_id,
+        from_wallet_name: row.from_wallet_name,
+        to_wallet_id: row.to_wallet_id,
+        to_wallet_name: row.to_wallet_name
+      }))
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   mapWallet,
   getWallets,
   createWallet,
   updateWallet,
-  transferMoney
+  transferMoney,
+  getTransfers
 };

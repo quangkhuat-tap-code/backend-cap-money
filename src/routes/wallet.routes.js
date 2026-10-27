@@ -5,12 +5,14 @@ const {
   getWallets,
   createWallet,
   updateWallet,
-  transferMoney
+  transferMoney,
+  getTransfers
 } = require('../controllers/wallet.controller');
 
 router.get('/', auth, getWallets);
 router.post('/', auth, createWallet);
 router.post('/transfer', auth, transferMoney);
+router.get('/transfers', auth, getTransfers);
 router.put('/:id', auth, updateWallet);
 
 module.exports = router;
