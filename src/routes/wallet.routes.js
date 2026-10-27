@@ -4,11 +4,13 @@ const auth = require('../middlewares/auth.middleware');
 const {
   getWallets,
   createWallet,
-  updateWallet
+  updateWallet,
+  transferMoney
 } = require('../controllers/wallet.controller');
 
 router.get('/', auth, getWallets);
 router.post('/', auth, createWallet);
+router.post('/transfer', auth, transferMoney);
 router.put('/:id', auth, updateWallet);
 
 module.exports = router;

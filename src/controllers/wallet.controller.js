@@ -220,9 +220,128 @@ async function updateWallet(req, res, next) {
   }
 }
 
+async function transferMoney(req, res, next) {
+  try {
+    const fromId = Number(req.body.from_wallet_id);
+    const toId = Number(req.body.to_wallet_id);
+    if (!Number.isInteger(fromId) || fromId <= 0 || !Number.isInteger(toId) || toId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng chọn ví nguồn và ví đích',
+        data: null
+      });
+    }
+
+    if (fromId === toId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Ví nguồn và ví đích phải khác nhau',
+        data: null
+      });
+    }
+
+    const amount = parseAmount(req.body.amount);
+    if (amount === null || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Số tiền phải lớn hơn 0',
+        data: null
+      });
+    }
+
+    let note = req.body.note != null ? String(req.body.note).trim() : '';
+    if (note.length > 500) {
+      return res.status(400).json({
+        success: false,
+        message: 'Ghi chú tối đa 500 ký tự',
+        data: null
+      });
+    }
+    if (note.length === 0) {
+      note = null;
+    }
+
+    const conn = await pool.getConnection();
+    let transferId;
+    try {
+      await conn.beginTransaction();
+
+      // Khoá 2 ví theo thứ tự id tăng dần để 2 lệnh chuyển ngược chiều chạy cùng lúc không bị deadlock
+      const [rows] = await conn.query(
+        'SELECT id, name, balance, type, is_default, created_at FROM wallets WHERE id IN (?, ?) AND user_id = ? ORDER BY id FOR UPDATE',
+        [fromId, toId, req.user.id]
+      );
+      if (rows.length !== 2) {
+        await conn.rollback();
+        return res.status(404).json({
+          success: false,
+          message: 'Ví không tồn tại',
+          data: null
+        });
+      }
+
+      const fromWallet = rows.find(r => r.id === fromId);
+      if (Number(fromWallet.balance) < amount) {
+        await conn.rollback();
+        return res.status(400).json({
+          success: false,
+          message: 'Số dư ví nguồn không đủ',
+          data: null
+        });
+      }
+
+      await conn.query('UPDATE wallets SET balance = balance - ? WHERE id = ?', [amount, fromId]);
+      await conn.query('UPDATE wallets SET balance = balance + ? WHERE id = ?', [amount, toId]);
+      const [insertRes] = await conn.query(
+        `INSERT INTO wallet_transfers (user_id, from_wallet_id, to_wallet_id, amount, note, transfer_date)
+         VALUES (?, ?, ?, ?, ?, NOW())`,
+        [req.user.id, fromId, toId, amount, note]
+      );
+      transferId = insertRes.insertId;
+
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+
+    const [wallets] = await pool.query(
+      'SELECT id, name, balance, type, is_default, created_at FROM wallets WHERE id IN (?, ?) AND user_id = ?',
+      [fromId, toId, req.user.id]
+    );
+    const [transfers] = await pool.query(
+      'SELECT id, from_wallet_id, to_wallet_id, amount, note, transfer_date FROM wallet_transfers WHERE id = ?',
+      [transferId]
+    );
+    const transfer = transfers[0];
+
+    res.status(201).json({
+      success: true,
+      message: 'Chuyển tiền thành công',
+      data: {
+        transfer: {
+          id: transfer.id,
+          from_wallet_id: transfer.from_wallet_id,
+          to_wallet_id: transfer.to_wallet_id,
+          amount: Number(transfer.amount),
+          note: transfer.note != null ? transfer.note : null,
+          transfer_date: transfer.transfer_date
+        },
+        from_wallet: mapWallet(wallets.find(w => w.id === fromId)),
+        to_wallet: mapWallet(wallets.find(w => w.id === toId))
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   mapWallet,
   getWallets,
   createWallet,
-  updateWallet
+  updateWallet,
+  transferMoney
 };
