@@ -488,9 +488,44 @@ async function updateTransaction(req, res, next) {
   }
 }
 
+const SEARCH_PAGE_SIZE = 20;
+
+// Tim trong ghi chu hoac ten danh muc, moi thang, 20 dong/trang
+async function searchTransactions(req, res, next) {
+  try {
+    const q = req.query.q != null ? String(req.query.q).trim() : '';
+    const page = req.query.page != null ? Number(req.query.page) : 1;
+    if (q.length < 1 || q.length > 50 || !Number.isInteger(page) || page < 1 || page > 1000) {
+      return badRequest(res, 'Từ khoá tìm kiếm không hợp lệ');
+    }
+
+    const like = `%${q.replace(/[\\%_]/g, '\\$&')}%`;
+    const [rows] = await pool.query(
+      `${BASE_TRANSACTION_QUERY}
+       WHERE t.user_id = ? AND (t.note LIKE ? OR c.name LIKE ?)
+       ORDER BY t.transaction_date DESC, t.id DESC
+       LIMIT ? OFFSET ?`,
+      [req.user.id, like, like, SEARCH_PAGE_SIZE + 1, (page - 1) * SEARCH_PAGE_SIZE]
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Tìm thấy giao dịch',
+      data: {
+        items: rows.slice(0, SEARCH_PAGE_SIZE).map(mapTransaction),
+        page,
+        has_more: rows.length > SEARCH_PAGE_SIZE
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   createTransaction,
   getTransactions,
   deleteTransaction,
-  updateTransaction
+  updateTransaction,
+  searchTransactions
 };
