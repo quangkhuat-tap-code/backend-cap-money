@@ -17,20 +17,19 @@ if (!fs.existsSync(uploadDir)) {
 }
 app.use('/uploads', express.static(uploadDir));
 
-const categoryRoutes    = require('./routes/category.routes');
+const categoryRoutes = require('./routes/category.routes');
 const transactionRoutes = require('./routes/transaction.routes');
-const analyticsRoutes   = require('./routes/analytics.routes');
-const budgetRoutes      = require('./routes/budget.routes');
+const authRoutes = require('./routes/auth.routes');
+const walletRoutes = require('./routes/wallet.routes');
+const analyticsRoutes = require('./routes/analytics.routes');
+const budgetRoutes = require('./routes/budget.routes');
 
-app.use('/api/categories',  categoryRoutes);
+app.use('/api/categories', categoryRoutes);
 app.use('/api/transactions', transactionRoutes);
-app.use('/api/analytics',   analyticsRoutes);
-app.use('/api/budgets',     budgetRoutes);
-
-// Route placeholders (của Thành viên khác)
-// app.use('/api/auth', ...);          // Thành viên 2
-// app.use('/api/wallets', ...);       // Thành viên 2
-// app.use('/api/budgets', ...);       // Thành viên 3 - xem budget.routes.js
+app.use('/api/auth', authRoutes);
+app.use('/api/wallets', walletRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/budgets', budgetRoutes);
 
 // 404 handler cho /api/*
 app.all('/api/*', (req, res) => {

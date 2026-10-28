@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
   full_name     VARCHAR(100) NOT NULL,
   email         VARCHAR(150) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
+  avatar_url    VARCHAR(255) NULL,
   created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -86,16 +87,24 @@ CREATE TABLE IF NOT EXISTS budgets (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Dữ liệu mẫu danh mục hệ thống (user_id = NULL)
-INSERT INTO categories (user_id, name, icon, color_hex, type) VALUES
-(NULL, 'Ăn uống',       '🍜', '#FF9F0A', 'expense'),
-(NULL, 'Di chuyển',     '🚗', '#0A84FF', 'expense'),
-(NULL, 'Mua sắm',       '🛍️', '#FF375F', 'expense'),
-(NULL, 'Giải trí',      '🎮', '#BF5AF2', 'expense'),
-(NULL, 'Hóa đơn',       '🧾', '#64D2FF', 'expense'),
-(NULL, 'Sức khỏe',      '💊', '#32D74B', 'expense'),
-(NULL, 'Giáo dục',      '📚', '#FFD60A', 'expense'),
-(NULL, 'Khác',          '📦', '#8E8E93', 'expense'),
-(NULL, 'Lương',         '💼', '#32D74B', 'income'),
-(NULL, 'Thưởng',        '🎁', '#FFD60A', 'income'),
-(NULL, 'Đầu tư',        '📈', '#0A84FF', 'income'),
-(NULL, 'Thu nhập khác', '💰', '#8E8E93', 'income');
+-- Chỉ thêm danh mục chưa có (cùng name + type), chạy lại file này không bị trùng
+INSERT INTO categories (user_id, name, icon, color_hex, type)
+SELECT NULL, s.name, s.icon, s.color_hex, s.type
+FROM (
+            SELECT 'Ăn uống'       AS name, '🍜' AS icon, '#FF9F0A' AS color_hex, 'expense' AS type
+  UNION ALL SELECT 'Di chuyển',     '🚗', '#0A84FF', 'expense'
+  UNION ALL SELECT 'Mua sắm',       '🛍️', '#FF375F', 'expense'
+  UNION ALL SELECT 'Giải trí',      '🎮', '#BF5AF2', 'expense'
+  UNION ALL SELECT 'Hóa đơn',       '🧾', '#64D2FF', 'expense'
+  UNION ALL SELECT 'Sức khỏe',      '💊', '#32D74B', 'expense'
+  UNION ALL SELECT 'Giáo dục',      '📚', '#FFD60A', 'expense'
+  UNION ALL SELECT 'Khác',          '📦', '#8E8E93', 'expense'
+  UNION ALL SELECT 'Lương',         '💼', '#32D74B', 'income'
+  UNION ALL SELECT 'Thưởng',        '🎁', '#FFD60A', 'income'
+  UNION ALL SELECT 'Đầu tư',        '📈', '#0A84FF', 'income'
+  UNION ALL SELECT 'Thu nhập khác', '💰', '#8E8E93', 'income'
+) AS s
+WHERE NOT EXISTS (
+  SELECT 1 FROM categories c
+  WHERE c.user_id IS NULL AND c.name = s.name AND c.type = s.type
+);

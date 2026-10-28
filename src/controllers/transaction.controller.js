@@ -361,8 +361,171 @@ async function deleteTransaction(req, res, next) {
   }
 }
 
+function badRequest(res, message) {
+  return res.status(400).json({ success: false, message, data: null });
+}
+
+function notFound(res, message) {
+  return res.status(404).json({ success: false, message, data: null });
+}
+
+// Sua giao dich: khong doi loai, khong doi anh. So du vi tinh lai = hoan tac giao dich cu + ap giao dich moi
+async function updateTransaction(req, res, next) {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return badRequest(res, 'Mã giao dịch không hợp lệ');
+    }
+
+    const rawAmount = Number(req.body.amount);
+    if (req.body.amount === null || req.body.amount === '' || !Number.isFinite(rawAmount) || rawAmount <= 0 || rawAmount > 999999999999) {
+      return badRequest(res, 'Số tiền phải lớn hơn 0');
+    }
+    const amount = Math.round(rawAmount * 100) / 100;
+
+    let note = req.body.note != null ? String(req.body.note).trim() : '';
+    if (note.length > 500) {
+      return badRequest(res, 'Ghi chú tối đa 500 ký tự');
+    }
+    if (note.length === 0) {
+      note = null;
+    }
+
+    const transactionDate = req.body.transaction_date != null ? String(req.body.transaction_date).trim() : '';
+    if (!isValidDateTimeString(transactionDate)) {
+      return badRequest(res, 'Ngày giao dịch không hợp lệ');
+    }
+
+    const walletId = Number(req.body.wallet_id);
+    const categoryId = Number(req.body.category_id);
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      const [txRows] = await conn.query(
+        'SELECT id, wallet_id, amount, type FROM transactions WHERE id = ? AND user_id = ? FOR UPDATE',
+        [id, req.user.id]
+      );
+      if (txRows.length === 0) {
+        await conn.rollback();
+        return notFound(res, 'Giao dịch không tồn tại');
+      }
+      const oldTx = txRows[0];
+
+      if (!Number.isInteger(walletId) || walletId <= 0) {
+        await conn.rollback();
+        return notFound(res, 'Ví không tồn tại');
+      }
+
+      // Khoa vi theo thu tu id tang dan (giong transferMoney) de tranh deadlock
+      const walletIds = Array.from(new Set([oldTx.wallet_id, walletId])).sort((a, b) => a - b);
+      const [walletRows] = await conn.query(
+        'SELECT id, balance FROM wallets WHERE id IN (?) AND user_id = ? ORDER BY id FOR UPDATE',
+        [walletIds, req.user.id]
+      );
+      const balances = {};
+      walletRows.forEach(w => { balances[w.id] = Number(w.balance); });
+      if (balances[walletId] === undefined) {
+        await conn.rollback();
+        return notFound(res, 'Ví không tồn tại');
+      }
+
+      if (!Number.isInteger(categoryId) || categoryId <= 0) {
+        await conn.rollback();
+        return notFound(res, 'Danh mục không tồn tại');
+      }
+      const [categories] = await conn.query(
+        'SELECT id, type FROM categories WHERE id = ? AND (user_id IS NULL OR user_id = ?)',
+        [categoryId, req.user.id]
+      );
+      if (categories.length === 0) {
+        await conn.rollback();
+        return notFound(res, 'Danh mục không tồn tại');
+      }
+      if (categories[0].type !== oldTx.type) {
+        await conn.rollback();
+        return badRequest(res, 'Danh mục không khớp loại giao dịch');
+      }
+
+      // Hoan tac giao dich cu o vi cu, roi ap giao dich moi o vi moi
+      const sign = oldTx.type === 'income' ? 1 : -1;
+      balances[oldTx.wallet_id] -= sign * Number(oldTx.amount);
+      balances[walletId] += sign * amount;
+
+      const negative = walletIds.some(wid => Math.round(balances[wid] * 100) < 0);
+      if (negative) {
+        await conn.rollback();
+        return badRequest(res, 'Số dư ví không đủ để thực hiện giao dịch');
+      }
+
+      for (const wid of walletIds) {
+        await conn.query('UPDATE wallets SET balance = ? WHERE id = ?', [Math.round(balances[wid] * 100) / 100, wid]);
+      }
+      await conn.query(
+        `UPDATE transactions
+         SET amount = ?, wallet_id = ?, category_id = ?, note = ?, transaction_date = ?
+         WHERE id = ?`,
+        [amount, walletId, categoryId, note, transactionDate, id]
+      );
+
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+
+    const [rows] = await pool.query(`${BASE_TRANSACTION_QUERY} WHERE t.id = ?`, [id]);
+    res.status(200).json({
+      success: true,
+      message: 'Đã cập nhật giao dịch',
+      data: mapTransaction(rows[0])
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+const SEARCH_PAGE_SIZE = 20;
+
+// Tim trong ghi chu hoac ten danh muc, moi thang, 20 dong/trang
+async function searchTransactions(req, res, next) {
+  try {
+    const q = req.query.q != null ? String(req.query.q).trim() : '';
+    const page = req.query.page != null ? Number(req.query.page) : 1;
+    if (q.length < 1 || q.length > 50 || !Number.isInteger(page) || page < 1 || page > 1000) {
+      return badRequest(res, 'Từ khoá tìm kiếm không hợp lệ');
+    }
+
+    const like = `%${q.replace(/[\\%_]/g, '\\$&')}%`;
+    const [rows] = await pool.query(
+      `${BASE_TRANSACTION_QUERY}
+       WHERE t.user_id = ? AND (t.note LIKE ? OR c.name LIKE ?)
+       ORDER BY t.transaction_date DESC, t.id DESC
+       LIMIT ? OFFSET ?`,
+      [req.user.id, like, like, SEARCH_PAGE_SIZE + 1, (page - 1) * SEARCH_PAGE_SIZE]
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Tìm thấy giao dịch',
+      data: {
+        items: rows.slice(0, SEARCH_PAGE_SIZE).map(mapTransaction),
+        page,
+        has_more: rows.length > SEARCH_PAGE_SIZE
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   createTransaction,
   getTransactions,
-  deleteTransaction
+  deleteTransaction,
+  updateTransaction,
+  searchTransactions
 };
