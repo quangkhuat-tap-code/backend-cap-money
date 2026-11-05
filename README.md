@@ -41,6 +41,14 @@ API Node.js + Express + MySQL cho app Android CapMoney.
 
    Server chạy ở `http://localhost:5000`. Gọi `GET http://localhost:5000/api/xyz` thấy JSON `"Không tìm thấy API"` là đã chạy.
 
+## Tài khoản demo có dữ liệu ảo
+
+```bash
+npm run seed:demo
+```
+
+Tạo tài khoản `demo@capmoney.test` (mật khẩu ở `DEMO_USER` trong `scripts/seed-demo.js`) với 3 ví, giao dịch thu/chi 3 tháng gần nhất, chuyển tiền giữa các ví và 5 ngân sách tháng hiện tại (có mục vượt và gần chạm hạn mức). Chạy lại sẽ xoá dữ liệu cũ của tài khoản demo rồi tạo lại.
+
 ## Lấy token để test khi chưa có API đăng nhập
 
 ```bash

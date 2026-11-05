@@ -6,7 +6,8 @@
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
     "db:init": "node scripts/run-sql.js database_init.sql",
-    "dev:token": "node scripts/dev-token.js"
+    "dev:token": "node scripts/dev-token.js",
+    "seed:demo": "node scripts/seed-demo.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
