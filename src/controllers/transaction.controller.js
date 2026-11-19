@@ -327,6 +327,18 @@ async function deleteTransaction(req, res, next) {
       const tx = txRows[0];
       const delta = tx.type === 'expense' ? Number(tx.amount) : -Number(tx.amount);
 
+      // Xoa khoan thu = tru lai tien vao vi: khong cho so du am (giong khi them/sua)
+      const [walletRows] = await conn.query('SELECT balance FROM wallets WHERE id = ? FOR UPDATE', [tx.wallet_id]);
+      const currentBalance = walletRows.length > 0 ? Number(walletRows[0].balance) : 0;
+      if (Math.round((currentBalance + delta) * 100) < 0) {
+        await conn.rollback();
+        return res.status(400).json({
+          success: false,
+          message: 'Không thể xóa: số dư ví sẽ bị âm vì tiền của khoản thu này đã được chi',
+          data: null
+        });
+      }
+
       await conn.query('UPDATE wallets SET balance = balance + ? WHERE id = ?', [delta, tx.wallet_id]);
       await conn.query('DELETE FROM transactions WHERE id = ?', [id]);
 
